@@ -2,23 +2,32 @@ package main
 
 import (
 	"net/http"
+	"os"
 
-	"github.com/disto-stack/j-mails-indexer/pkg/routes"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	"github.com/disto-stack/j-mails-indexer/pkg/handlers"
+	"github.com/disto-stack/j-mails-indexer/pkg/services"
 )
 
+var (
+	indexerHandler handlers.IndexerHandler
+	
+)
 func main()  {
-	r := chi.NewRouter()
+	setHandlersDependencies()
 
-	r.Use(middleware.Logger)
+	args := os.Args
+	if len(args) > 1 {
+		filename := args[1]
+		indexerHandler.IndexFromTgz(filename);
+	}
+}
 
+func setHandlersDependencies() {
+	config := &services.Config{}
+	config.SetConfig("ssdsd")
 
-	r.Route("/api/v1", func(r chi.Router) {
-		routes.Indexer(r)
-	})
-
-	http.ListenAndServe(":3000", r)
+	indexerHandler = handlers.IndexerHandler{}
+	indexerHandler.SetDependencies(config)
 }
 
 func hello(w http.ResponseWriter, r*http.Request) {
