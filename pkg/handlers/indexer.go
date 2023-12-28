@@ -1,56 +1,97 @@
 package handlers
 
 import (
-	"archive/tar"
-	"compress/gzip"
+	"bytes"
 	"fmt"
 	"io"
+	"io/fs"
+	"log"
+	"net/mail"
 	"os"
+	"path/filepath"
 
 	"github.com/disto-stack/j-mails-indexer/pkg/services"
+	"github.com/disto-stack/j-mails-indexer/pkg/types"
 )
 
 type IndexerHandler struct {
 	configService	*services.Config
+	zincsearchService	*services.ZincsearchService
 }
 
+func (i *IndexerHandler) SetDependencies(config *services.Config, zincsearchService *services.ZincsearchService)  {
+	i.configService = config;
+	i.zincsearchService = zincsearchService;
+}
 
-func (ih *IndexerHandler) IndexFromTgz(filename string)  {
-	file, err := os.Open(filename)
-
-	if err != nil {
-		fmt.Println("Error open the file:", err)
+func (ih *IndexerHandler) IndexFromDir(dir string)  {
+	emailDataSlice := []types.EmailData{
+		{ Index: "email", Records: []types.Email{} },
 	}
-	defer file.Close()
+	fmt.Println(dir)
+	err := filepath.Walk(dir + "/maildir/", func(path string, info fs.FileInfo, err error) error {
+		if !info.IsDir() {
+			email, err := readFile(path)
+			if err != nil {
+				return nil
+			}
 
-	gzipReader, err := gzip.NewReader(file)
-	if err != nil {
-		fmt.Println("Error in gzip:", err)
-			return
-	}
-	defer gzipReader.Close()
+			lastEmailData := &emailDataSlice[len(emailDataSlice) - 1];
+			if len(lastEmailData.Records) >= 100000 {
+				emailDataSlice = append(emailDataSlice, types.EmailData{
+					Index: "email", Records: []types.Email{},
+				})
 
-	tarReader := tar.NewReader(gzipReader)
-	counter := 0
-	for {
-		counter = counter + 1
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
+				lastEmailData = &emailDataSlice[len(emailDataSlice) - 1];
+			}
+
+			lastEmailData.Records = append(lastEmailData.Records, email)
 		}
-		
+		return nil
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	
+	err = ih.zincsearchService.UploadIndex()
+	ih.zincsearchService.UploadBulkData(emailDataSlice)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func readFile(path string) (types.Email, error) {
+	 file, err := os.ReadFile(path);
+
+		b := bytes.NewReader(file)
+		message, err := mail.ReadMessage(b)
+
 		if err != nil {
-			fmt.Println("Error al leer el archivo tar:", err)
-			return
+			return types.Email{}, err
 		}
 
-		fmt.Println("Nombre del archivo:", header.Name)
-	}
+		messageId := message.Header.Get("MESSAGE-ID")
+		from := message.Header.Get("MESSAGE-ID")
+		to := message.Header.Get("TO")
+		subject := message.Header.Get("SUBJECT")
 
-	fmt.Println(ih.configService.ZincsearchUrl)
-	fmt.Println("total:", counter)
-}
+		body, err := io.ReadAll(message.Body)
+		if err != nil {
+			fmt.Println(err)
+			return types.Email{}, err
+		}
 
-func (ih *IndexerHandler) SetDependencies(config *services.Config)  {
-	ih.configService = config;
+		content := string(body)
+
+		email := types.Email{
+			MessageId: messageId,
+			From: from,
+			To: to,
+			Subject: subject,
+			Content: content,
+		}
+
+		return email, nil
 }

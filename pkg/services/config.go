@@ -1,10 +1,22 @@
 package services
 
+import "os"
+
 
 type Config	struct {
-	ZincsearchUrl	string
+	zincsearchUrl	string
 }
 
-func (c	*Config) SetConfig(zincsearchUrl string) {
-	c.ZincsearchUrl = zincsearchUrl
+func (c *Config) GetZincsearchUrl() string  {
+	return c.zincsearchUrl;
+}
+
+func (c *Config) SetUrlsFromEnv() {
+	zincsearchUrlFromEnv, existsZincsearchUrlFromEnv := os.LookupEnv("ZINCSEARCH_URL")
+
+	if !existsZincsearchUrlFromEnv {
+		zincsearchUrlFromEnv = "http://localhost:4080"
+	}
+
+	c.zincsearchUrl = zincsearchUrlFromEnv;
 }

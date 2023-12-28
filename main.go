@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net/http"
 	"os"
 
 	"github.com/disto-stack/j-mails-indexer/pkg/handlers"
@@ -10,26 +9,31 @@ import (
 
 var (
 	indexerHandler handlers.IndexerHandler
-	
 )
+
+type envVariables struct {
+	zincsearchUrl	string
+}
+
 func main()  {
-	setHandlersDependencies()
+	setupDependencies()
 
 	args := os.Args
 	if len(args) > 1 {
-		filename := args[1]
-		indexerHandler.IndexFromTgz(filename);
+		dir := args[1]
+		indexerHandler.IndexFromDir(dir);
 	}
 }
 
-func setHandlersDependencies() {
+func setupDependencies() {
 	config := &services.Config{}
-	config.SetConfig("ssdsd")
+	config.SetUrlsFromEnv()
 
+	// Services
+	zincSearchService := services.ZincsearchService{}
+	zincSearchService.SetDependencies(config)
+
+	// Handlers
 	indexerHandler = handlers.IndexerHandler{}
-	indexerHandler.SetDependencies(config)
-}
-
-func hello(w http.ResponseWriter, r*http.Request) {
-	w.Write([]byte("Hello world"))
+	indexerHandler.SetDependencies(config, &zincSearchService)
 }
