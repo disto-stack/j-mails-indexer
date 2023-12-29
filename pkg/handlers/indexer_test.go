@@ -8,7 +8,7 @@ import (
 )
 
 func TestReadFromDir(t *testing.T) {
-	configService := services.Config{}
+	configService := services.ConfigService{}
 	configService.SetUrlsFromEnv()
 
 	zincsearchService := services.ZincsearchService{}
