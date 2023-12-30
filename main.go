@@ -12,16 +12,16 @@ var (
 )
 
 type envVariables struct {
-	zincsearchUrl	string
+	zincsearchUrl string
 }
 
-func main()  {
+func main() {
 	setupDependencies()
 
 	args := os.Args
 	if len(args) > 1 {
 		dir := args[1]
-		indexerHandler.IndexFromDir(dir);
+		indexerHandler.IndexFromDir(dir)
 	}
 }
 
