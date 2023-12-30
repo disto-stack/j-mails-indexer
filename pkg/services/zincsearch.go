@@ -13,7 +13,7 @@ import (
 )
 
 type ZincsearchService struct {
-	configService *Config
+	configService *ConfigService
 }
 
 type IndexPropertiesValues struct {
@@ -43,8 +43,8 @@ type Index struct {
 	Mappings    Mappings `json:"mappings"`
 }
 
-func (z *ZincsearchService) SetDependencies(config *Config) {
-	z.configService = config
+func (z *ZincsearchService) SetDependencies(c *ConfigService) {
+	z.configService = c
 }
 
 func (z *ZincsearchService) UploadIndex() error {
@@ -116,6 +116,69 @@ func (z *ZincsearchService) UploadBulkData(data []types.EmailData) error {
 
 	fmt.Println("Data uploaded!")
 	return nil
+}
+
+func (z *ZincsearchService) SearchByTerm(query types.SearchQuery) types.ApiResponse {
+	response := types.ApiResponse{}
+
+	searchUrl := z.configService.zincsearchUrl + "/api/email/_search"
+	jsonBody, err := json.Marshal(query)
+	if err != nil {
+		response.Code = 500
+		response.Message = "Unexpected server error"
+
+		log.Println(err)
+
+		return response
+	}
+
+	req, err := http.NewRequest("POST", searchUrl, bytes.NewReader(jsonBody))
+	if err != nil {
+		response.Code = 500
+		response.Message = "Error in external client"
+
+		log.Println(err)
+
+		return response
+	}
+
+	req.SetBasicAuth("admin", "12345678")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36")
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		response.Code = 500
+		response.Message = "Unexpected server error"
+
+		log.Println(err)
+
+		return response
+	}
+
+	if res.StatusCode != http.StatusOK {
+		response.Code = 500
+		response.Message = "Error in external client"
+
+		log.Println("Error ", string(resBody))
+
+		return response
+	}
+
+	emailResponse := types.ZincsearchApiResponse{}
+	json.Unmarshal(resBody, &emailResponse)
+
+	apiResponse := &types.ApiResponse{
+		Code:    200,
+		Message: "Search ok",
+	}
+
+	apiResponse.WithData(emailResponse)
+
+	return *apiResponse
 }
 
 func createIndex() Index {

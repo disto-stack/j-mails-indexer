@@ -15,13 +15,13 @@ import (
 )
 
 type IndexerHandler struct {
-	configService     *services.Config
+	configService     *services.ConfigService
 	zincsearchService *services.ZincsearchService
 }
 
-func (i *IndexerHandler) SetDependencies(config *services.Config, zincsearchService *services.ZincsearchService) {
-	i.configService = config
-	i.zincsearchService = zincsearchService
+func (i *IndexerHandler) SetDependencies(c *services.ConfigService, z *services.ZincsearchService) {
+	i.configService = c
+	i.zincsearchService = z
 }
 
 func (ih *IndexerHandler) IndexFromDir(dir string) {
@@ -50,6 +50,12 @@ func (ih *IndexerHandler) IndexFromDir(dir string) {
 		return nil
 	})
 
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = ih.zincsearchService.UploadIndex()
+	ih.zincsearchService.UploadBulkData(emailDataSlice)
 	if err != nil {
 		log.Fatal(err)
 	}
