@@ -9,6 +9,7 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/disto-stack/j-mails-indexer/pkg/services"
 	"github.com/disto-stack/j-mails-indexer/pkg/types"
@@ -18,6 +19,11 @@ type IndexerHandler struct {
 	configService     *services.ConfigService
 	zincsearchService *services.ZincsearchService
 }
+
+var (
+	wg sync.WaitGroup
+	m  sync.Mutex
+)
 
 func (i *IndexerHandler) SetDependencies(c *services.ConfigService, z *services.ZincsearchService) {
 	i.configService = c
@@ -31,21 +37,32 @@ func (ih *IndexerHandler) IndexFromDir(dir string) {
 
 	err := filepath.Walk(dir+"/maildir/", func(path string, info fs.FileInfo, err error) error {
 		if !info.IsDir() {
-			email, err := readFile(path)
-			if err != nil {
+			wg.Add(1)
+
+			go func(path string) error {
+				email, err := readFile(path)
+				if err != nil {
+					return nil
+				}
+
+				m.Lock()
+
+				lastEmailData := &emailDataSlice[len(emailDataSlice)-1]
+				if len(lastEmailData.Records) >= 50000 {
+					emailDataSlice = append(emailDataSlice, types.EmailData{
+						Index: "email", Records: []types.Email{},
+					})
+
+					lastEmailData = &emailDataSlice[len(emailDataSlice)-1]
+				}
+
+				lastEmailData.Records = append(lastEmailData.Records, email)
+
+				m.Unlock()
+
 				return nil
-			}
+			}(path)
 
-			lastEmailData := &emailDataSlice[len(emailDataSlice)-1]
-			if len(lastEmailData.Records) >= 100000 {
-				emailDataSlice = append(emailDataSlice, types.EmailData{
-					Index: "email", Records: []types.Email{},
-				})
-
-				lastEmailData = &emailDataSlice[len(emailDataSlice)-1]
-			}
-
-			lastEmailData.Records = append(lastEmailData.Records, email)
 		}
 		return nil
 	})
@@ -53,6 +70,8 @@ func (ih *IndexerHandler) IndexFromDir(dir string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	wg.Wait()
 
 	err = ih.zincsearchService.UploadIndex()
 	ih.zincsearchService.UploadBulkData(emailDataSlice)
@@ -62,6 +81,7 @@ func (ih *IndexerHandler) IndexFromDir(dir string) {
 }
 
 func readFile(path string) (types.Email, error) {
+	defer wg.Done()
 	file, err := os.ReadFile(path)
 
 	b := bytes.NewReader(file)
@@ -72,7 +92,7 @@ func readFile(path string) (types.Email, error) {
 	}
 
 	messageId := message.Header.Get("MESSAGE-ID")
-	from := message.Header.Get("MESSAGE-ID")
+	from := message.Header.Get("FROM")
 	to := message.Header.Get("TO")
 	subject := message.Header.Get("SUBJECT")
 
