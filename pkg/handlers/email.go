@@ -38,6 +38,7 @@ func (e *EmailHandler) SearchByTerm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	zincResponse := e.zincSearchService.SearchByTerm(searchQuery)
+
 	w.WriteHeader(int(zincResponse.Code))
 	json.NewEncoder(w).Encode(zincResponse)
 }
