@@ -17,5 +17,5 @@ func TestReadFromDir(t *testing.T) {
 	indexer := handlers.IndexerHandler{}
 	indexer.SetDependencies(&configService, &zincsearchService)
 
-	indexer.IndexFromDir("/home/disto/new_bulk_data")
+	indexer.IndexFromDir("/home/disto/enron_mail_20110402")
 }
