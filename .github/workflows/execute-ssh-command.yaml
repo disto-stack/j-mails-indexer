@@ -1,0 +1,27 @@
+name: EC2
+
+on:
+  workflow_run:
+    workflows: ['Publish Docker image']
+    branches: [main]
+    types:
+      - completed
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+
+      - name: Execute remote ssh commands to deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            docker pull distostack/jmails-server-image:main
+            docker stop jmails
+            docker rm jmails
+            docker run -d -p 3000:3000 --name jmails distostack/jmails-server-image:main
